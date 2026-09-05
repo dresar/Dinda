@@ -1,0 +1,404 @@
+{% extends "base.html" %}
+{% set title = "Dokumentasi Sistem - DINDA Analytics" %}
+{% set header = "Dokumentasi Sistem" %}
+{% set subheader = "Penjelasan cara kerja sistem end-to-end (KDD) beserta diagram alur pemrosesan." %}
+
+{% block content %}
+  <div class="rounded-2xl bg-white/10 backdrop-blur-md border border-white/15 shadow-glass p-6">
+    <div class="text-lg font-semibold">Ringkasan</div>
+    <div class="mt-2 text-sm text-slate-200/85">
+      Platform ini mengubah data transaksi mentah menjadi informasi strategis melalui alur KDD: unggah data, pembersihan, transformasi/encoding, normalisasi, clustering, analisis, dan ekspor.
+    </div>
+    <div class="mt-4 grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <div class="rounded-2xl bg-black/20 border border-white/10 p-5">
+        <div class="text-sm font-semibold">Upload</div>
+        <div class="mt-2 text-sm text-slate-200/80">Terima CSV, simpan file ke folder uploads dan buat metadata job di SQLite.</div>
+      </div>
+      <div class="rounded-2xl bg-black/20 border border-white/10 p-5">
+        <div class="text-sm font-semibold">Prapemrosesan</div>
+        <div class="mt-2 text-sm text-slate-200/80">Bersihkan data, lakukan encoding label kategori, dan normalisasi Min–Maks untuk volume.</div>
+      </div>
+      <div class="rounded-2xl bg-black/20 border border-white/10 p-5">
+        <div class="text-sm font-semibold">Clustering & Analisis</div>
+        <div class="mt-2 text-sm text-slate-200/80">Jalankan HAC & K-Medoids, tampilkan visualisasi, karakteristik cluster, serta ekspor hasil.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-4">
+    <div class="rounded-2xl bg-white/10 backdrop-blur-md border border-white/15 shadow-glass p-6">
+      <div class="text-lg font-semibold">Diagram Alur (Flow)</div>
+      <div class="mt-3 text-sm text-slate-200/80">Diagram berikut menggambarkan alur pemrosesan dari sisi pengguna sampai hasil analisis.</div>
+      <div class="mt-4" data-diagram data-diagram-title="Diagram Alur (Flow)" data-default-zoom="1.05">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <div class="text-xs text-slate-200/70">Tips: gunakan zoom untuk membaca node kecil, atau buka layar penuh.</div>
+          <div class="flex flex-wrap items-center gap-2">
+            <button type="button" data-zoom-out class="rounded-lg bg-white/10 hover:bg-white/15 border border-white/15 px-3 py-1 text-xs font-semibold">Zoom -</button>
+            <button type="button" data-zoom-reset class="rounded-lg bg-white/10 hover:bg-white/15 border border-white/15 px-3 py-1 text-xs font-semibold">Reset</button>
+            <button type="button" data-zoom-in class="rounded-lg bg-white/10 hover:bg-white/15 border border-white/15 px-3 py-1 text-xs font-semibold">Zoom +</button>
+            <button type="button" data-fullscreen class="rounded-lg bg-indigo-500/60 hover:bg-indigo-500/70 border border-indigo-400/50 px-3 py-1 text-xs font-semibold">Buka Besar</button>
+            <button type="button" data-download-svg class="rounded-lg bg-white/10 hover:bg-white/15 border border-white/15 px-3 py-1 text-xs font-semibold">Download SVG</button>
+            <button type="button" data-download-png class="rounded-lg bg-white/10 hover:bg-white/15 border border-white/15 px-3 py-1 text-xs font-semibold">Download PNG</button>
+          </div>
+        </div>
+        <div class="mt-3 rounded-2xl bg-black/30 border border-white/10 p-4 overflow-auto max-h-[36rem] cursor-grab active:cursor-grabbing" data-drag-scroll>
+          <div data-zoom-target class="inline-block">
+            <pre class="mermaid">
+flowchart TD
+  U[Pengguna] -->|Unggah CSV| APP[Web App Flask]
+  APP -->|Simpan file| UP[(Folder uploads)]
+  APP -->|Simpan metadata| DB[(SQLite app.db)]
+
+  APP -->|Mulai prapemrosesan| PRE[Prapemrosesan]
+  PRE --> PRE1[Pembersihan data]
+  PRE1 -->|isi placeholder teks; drop numerik invalid| PRE2[Koreksi tipe data]
+  PRE2 --> PRE3[Encoding label kategori]
+  PRE3 --> PRE4[Min-Max volume 0-1]
+  PRE4 -->|Simpan hasil| PREOUT[(CSV preprocessed)]
+  PRE -->|Log progres| DB
+
+  APP -->|Mulai clustering| CL[Clustering]
+  CL --> HAC[HAC: Euclidean; Single Linkage]
+  HAC --> DENDRO[Visualisasi dendrogram]
+  CL --> KM[K-Medoids: PAM; medoid aktual]
+  KM --> SWAP[Iterasi swap medoid]
+  CL -->|Simpan hasil| HACOUT[(CSV hasil HAC)]
+  CL -->|Simpan hasil| KMOUT[(CSV hasil K-Medoids)]
+  CL -->|Simpan gambar| IMG[(Folder static generated)]
+  CL -->|Log progres| DB
+
+  APP --> RES[Halaman hasil analisis]
+  RES --> COMP[Perbandingan HAC vs K-Medoids]
+  RES --> PROF[Tabel karakteristik cluster]
+  RES --> EXP[Ekspor CSV dan Excel]
+            </pre>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="rounded-2xl bg-white/10 backdrop-blur-md border border-white/15 shadow-glass p-6">
+      <div class="text-lg font-semibold">Diagram Interaksi (Sequence)</div>
+      <div class="mt-3 text-sm text-slate-200/80">Diagram ini menekankan transparansi proses melalui log progres yang ditampilkan di UI.</div>
+      <div class="mt-4" data-diagram data-diagram-title="Diagram Interaksi (Sequence)" data-default-zoom="1.15">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <div class="text-xs text-slate-200/70">Tips: klik Buka Besar agar mudah dibaca, lalu download jika perlu.</div>
+          <div class="flex flex-wrap items-center gap-2">
+            <button type="button" data-zoom-out class="rounded-lg bg-white/10 hover:bg-white/15 border border-white/15 px-3 py-1 text-xs font-semibold">Zoom -</button>
+            <button type="button" data-zoom-reset class="rounded-lg bg-white/10 hover:bg-white/15 border border-white/15 px-3 py-1 text-xs font-semibold">Reset</button>
+            <button type="button" data-zoom-in class="rounded-lg bg-white/10 hover:bg-white/15 border border-white/15 px-3 py-1 text-xs font-semibold">Zoom +</button>
+            <button type="button" data-fullscreen class="rounded-lg bg-indigo-500/60 hover:bg-indigo-500/70 border border-indigo-400/50 px-3 py-1 text-xs font-semibold">Buka Besar</button>
+            <button type="button" data-download-svg class="rounded-lg bg-white/10 hover:bg-white/15 border border-white/15 px-3 py-1 text-xs font-semibold">Download SVG</button>
+            <button type="button" data-download-png class="rounded-lg bg-white/10 hover:bg-white/15 border border-white/15 px-3 py-1 text-xs font-semibold">Download PNG</button>
+          </div>
+        </div>
+        <div class="mt-3 rounded-2xl bg-black/30 border border-white/10 p-4 overflow-auto max-h-[36rem] cursor-grab active:cursor-grabbing" data-drag-scroll>
+          <div data-zoom-target class="inline-block">
+            <pre class="mermaid">
+sequenceDiagram
+  autonumber
+  participant User as Pengguna
+  participant UI as UI (Browser)
+  participant App as Flask App
+  participant DB as SQLite
+  participant ML as Modul ML (clustering_logic)
+
+  User->>UI: Unggah CSV
+  UI->>App: POST /unggah (file)
+  App->>DB: Insert job + log
+  App-->>UI: Redirect ke /prapemrosesan
+
+  User->>UI: Klik "Jalankan Prapemrosesan"
+  UI->>App: POST /prapemrosesan
+  App->>DB: Update status=preprocessing + step
+  App->>ML: prapemrosesan_dataset(...)
+  loop Log progres
+    ML->>App: progress_cb("...")
+    App->>DB: Append log + step
+    UI->>App: GET /api/job/:id/logs
+    App->>DB: Read log terbaru
+    App-->>UI: JSON logs
+  end
+  ML-->>App: df_pre + ringkasan
+  App->>DB: Simpan preprocess_summary_json + path output
+  App-->>UI: Halaman preview preprocessed
+
+  User->>UI: Jalankan clustering
+  UI->>App: POST /clustering (parameter)
+  App->>ML: jalankan_hac / jalankan_kmedoids
+  ML-->>App: label cluster + gambar + metrik
+  App->>DB: Simpan path hasil + log
+  App-->>UI: /hasil (perbandingan & ekspor)
+            </pre>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="mt-6 rounded-2xl bg-white/10 backdrop-blur-md border border-white/15 shadow-glass p-6">
+    <div class="text-lg font-semibold">Detail Prapemrosesan</div>
+    <div class="mt-3 grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div class="rounded-2xl bg-black/20 border border-white/10 p-5">
+        <div class="text-sm font-semibold">Pembersihan Data</div>
+        <ul class="mt-3 space-y-2 text-sm text-slate-200/85 list-disc pl-5">
+          <li>Kolom teks/kategorikal: missing values diisi placeholder "TIDAK DIKETAHUI".</li>
+          <li>Kolom numerik (YEAR, MONTH, VOLUME): diekstrak angka pertama dari string; baris invalid dibuang.</li>
+          <li>Duplikasi baris dihapus agar analisis tidak bias.</li>
+        </ul>
+      </div>
+      <div class="rounded-2xl bg-black/20 border border-white/10 p-5">
+        <div class="text-sm font-semibold">Encoding & Normalisasi</div>
+        <ul class="mt-3 space-y-2 text-sm text-slate-200/85 list-disc pl-5">
+          <li>JENIS PESTISIDA: Insektisida=1, Herbisida=2, Fungisida=3, Zat Pengatur Tumbuh=4.</li>
+          <li>PACKAGING: dibuat kode huruf dan kode angka (untuk fitur clustering).</li>
+          <li>DISTRIBUTOR, AREA, REGENCY/DISTRICT, PRODUCT: label encoding menghasilkan kolom *_kode.</li>
+          <li>Volume dinormalisasi Min–Maks menjadi <span class="font-semibold">volume_normalisasi</span> (0–1).</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="mt-6 rounded-2xl bg-white/10 backdrop-blur-md border border-white/15 shadow-glass p-6">
+    <div class="text-lg font-semibold">Lokasi Output</div>
+    <div class="mt-3 grid grid-cols-1 lg:grid-cols-3 gap-4 text-sm text-slate-200/85">
+      <div class="rounded-2xl bg-black/20 border border-white/10 p-5">
+        <div class="font-semibold">uploads/</div>
+        <div class="mt-2 text-slate-200/80">CSV mentah, CSV preprocessed, dan CSV hasil clustering.</div>
+      </div>
+      <div class="rounded-2xl bg-black/20 border border-white/10 p-5">
+        <div class="font-semibold">static/generated/</div>
+        <div class="mt-2 text-slate-200/80">Dendrogram HAC dan peta sebaran cluster.</div>
+      </div>
+      <div class="rounded-2xl bg-black/20 border border-white/10 p-5">
+        <div class="font-semibold">SQLite (app.db)</div>
+        <div class="mt-2 text-slate-200/80">Metadata job, status langkah, ringkasan prapemrosesan, dan log progres.</div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs";
+
+    function ensureSvgXmlns(svgText) {
+      if (svgText.includes('xmlns="http://www.w3.org/2000/svg"')) return svgText;
+      return svgText.replace("<svg", '<svg xmlns="http://www.w3.org/2000/svg"');
+    }
+
+    function downloadText(filename, text, mime) {
+      const blob = new Blob([text], { type: mime });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    async function downloadPngFromSvg(svgEl, filename, scale = 2) {
+      const svgText = ensureSvgXmlns(svgEl.outerHTML);
+      const svgBlob = new Blob([svgText], { type: "image/svg+xml;charset=utf-8" });
+      const svgUrl = URL.createObjectURL(svgBlob);
+      const img = new Image();
+      const w = Math.max(1, Math.ceil(svgEl.viewBox?.baseVal?.width || svgEl.getBBox().width || 1200));
+      const h = Math.max(1, Math.ceil(svgEl.viewBox?.baseVal?.height || svgEl.getBBox().height || 800));
+      await new Promise((resolve, reject) => {
+        img.onload = resolve;
+        img.onerror = reject;
+        img.src = svgUrl;
+      });
+      const canvas = document.createElement("canvas");
+      canvas.width = w * scale;
+      canvas.height = h * scale;
+      const ctx = canvas.getContext("2d");
+      ctx.fillStyle = "#0b1220";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.setTransform(scale, 0, 0, scale, 0, 0);
+      ctx.drawImage(img, 0, 0);
+      URL.revokeObjectURL(svgUrl);
+      const pngUrl = canvas.toDataURL("image/png");
+      const a = document.createElement("a");
+      a.href = pngUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    }
+
+    async function renderMermaidInPlace(preEl, idx) {
+      const code = (preEl.textContent || "").trim();
+      const id = `mmd_${idx}_${Math.random().toString(16).slice(2)}`;
+      try {
+        const out = await mermaid.render(id, code);
+        const wrap = document.createElement("div");
+        wrap.innerHTML = out.svg;
+        preEl.replaceWith(wrap);
+        return true;
+      } catch (e) {
+        const msg = document.createElement("div");
+        msg.className = "rounded-xl bg-rose-500/15 border border-rose-400/30 px-4 py-3 text-sm text-slate-200/85";
+        const detail = String(e && e.message ? e.message : e);
+        msg.textContent = `Diagram gagal dirender. ${detail}`;
+        preEl.parentElement.prepend(msg);
+        console.error("Mermaid render error:", e, code);
+        return false;
+      }
+    }
+
+    function initDiagramTools(root) {
+      const title = root.getAttribute("data-diagram-title") || "diagram";
+      const zoomTarget = root.querySelector("[data-zoom-target]");
+      let zoom = parseFloat(root.getAttribute("data-default-zoom") || "1") || 1;
+
+      function applyZoom() {
+        zoomTarget.style.transformOrigin = "0 0";
+        zoomTarget.style.transform = `scale(${zoom})`;
+      }
+      applyZoom();
+
+      function getSvg() {
+        return zoomTarget.querySelector("svg");
+      }
+
+      root.querySelector("[data-zoom-in]").addEventListener("click", () => {
+        zoom = Math.min(3, Math.round((zoom + 0.1) * 10) / 10);
+        applyZoom();
+      });
+      root.querySelector("[data-zoom-out]").addEventListener("click", () => {
+        zoom = Math.max(0.4, Math.round((zoom - 0.1) * 10) / 10);
+        applyZoom();
+      });
+      root.querySelector("[data-zoom-reset]").addEventListener("click", () => {
+        zoom = parseFloat(root.getAttribute("data-default-zoom") || "1") || 1;
+        applyZoom();
+      });
+
+      root.querySelector("[data-download-svg]").addEventListener("click", () => {
+        const svg = getSvg();
+        if (!svg) return;
+        downloadText(`${title}.svg`, ensureSvgXmlns(svg.outerHTML), "image/svg+xml;charset=utf-8");
+      });
+
+      root.querySelector("[data-download-png]").addEventListener("click", async () => {
+        const svg = getSvg();
+        if (!svg) return;
+        await downloadPngFromSvg(svg, `${title}.png`, 2);
+      });
+
+      root.querySelector("[data-fullscreen]").addEventListener("click", () => {
+        const svg = getSvg();
+        if (!svg) return;
+        const modal = document.getElementById("diagramModal");
+        const modalTitle = document.getElementById("diagramModalTitle");
+        const modalBody = document.getElementById("diagramModalBody");
+        const modalZoomTarget = document.getElementById("diagramModalZoom");
+        let modalZoom = 1.2;
+
+        modalTitle.textContent = title;
+        modalBody.innerHTML = "";
+        const wrap = document.createElement("div");
+        wrap.className = "inline-block";
+        wrap.innerHTML = svg.outerHTML;
+        modalBody.appendChild(wrap);
+
+        function applyModalZoom() {
+          modalZoomTarget.style.transformOrigin = "0 0";
+          modalZoomTarget.style.transform = `scale(${modalZoom})`;
+        }
+
+        applyModalZoom();
+        modal.classList.remove("hidden");
+
+        const close = () => modal.classList.add("hidden");
+        document.getElementById("diagramModalClose").onclick = close;
+        modal.addEventListener("click", (e) => {
+          if (e.target === modal) close();
+        });
+
+        document.getElementById("diagramModalZoomIn").onclick = () => {
+          modalZoom = Math.min(4, Math.round((modalZoom + 0.1) * 10) / 10);
+          applyModalZoom();
+        };
+        document.getElementById("diagramModalZoomOut").onclick = () => {
+          modalZoom = Math.max(0.4, Math.round((modalZoom - 0.1) * 10) / 10);
+          applyModalZoom();
+        };
+        document.getElementById("diagramModalZoomReset").onclick = () => {
+          modalZoom = 1.2;
+          applyModalZoom();
+        };
+        document.getElementById("diagramModalDownloadSvg").onclick = () => {
+          const svg2 = modalBody.querySelector("svg");
+          if (!svg2) return;
+          downloadText(`${title}.svg`, ensureSvgXmlns(svg2.outerHTML), "image/svg+xml;charset=utf-8");
+        };
+        document.getElementById("diagramModalDownloadPng").onclick = async () => {
+          const svg2 = modalBody.querySelector("svg");
+          if (!svg2) return;
+          await downloadPngFromSvg(svg2, `${title}.png`, 2);
+        };
+      });
+    }
+
+    mermaid.initialize({ startOnLoad: false, theme: "dark", securityLevel: "loose" });
+
+    const pres = Array.from(document.querySelectorAll("[data-diagram] pre.mermaid"));
+    for (let i = 0; i < pres.length; i += 1) {
+      await renderMermaidInPlace(pres[i], i);
+    }
+    document.querySelectorAll("[data-diagram]").forEach((el) => initDiagramTools(el));
+    document.querySelectorAll("[data-drag-scroll]").forEach((el) => {
+      let isDown = false;
+      let startX = 0;
+      let startY = 0;
+      let startLeft = 0;
+      let startTop = 0;
+      el.addEventListener("pointerdown", (e) => {
+        isDown = true;
+        startX = e.clientX;
+        startY = e.clientY;
+        startLeft = el.scrollLeft;
+        startTop = el.scrollTop;
+        el.setPointerCapture(e.pointerId);
+      });
+      el.addEventListener("pointermove", (e) => {
+        if (!isDown) return;
+        const dx = e.clientX - startX;
+        const dy = e.clientY - startY;
+        el.scrollLeft = startLeft - dx;
+        el.scrollTop = startTop - dy;
+      });
+      const up = () => {
+        isDown = false;
+      };
+      el.addEventListener("pointerup", up);
+      el.addEventListener("pointercancel", up);
+      el.addEventListener("pointerleave", up);
+    });
+  </script>
+
+  <div id="diagramModal" class="hidden fixed inset-0 z-50 bg-black/70 backdrop-blur-sm">
+    <div class="mx-auto max-w-7xl h-full p-4 flex flex-col">
+      <div class="rounded-2xl bg-slate-950/80 border border-white/15 shadow-glass p-4">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div class="text-sm font-semibold" id="diagramModalTitle"></div>
+          <div class="flex flex-wrap items-center gap-2">
+            <button type="button" id="diagramModalZoomOut" class="rounded-lg bg-white/10 hover:bg-white/15 border border-white/15 px-3 py-1 text-xs font-semibold">Zoom -</button>
+            <button type="button" id="diagramModalZoomReset" class="rounded-lg bg-white/10 hover:bg-white/15 border border-white/15 px-3 py-1 text-xs font-semibold">Reset</button>
+            <button type="button" id="diagramModalZoomIn" class="rounded-lg bg-white/10 hover:bg-white/15 border border-white/15 px-3 py-1 text-xs font-semibold">Zoom +</button>
+            <button type="button" id="diagramModalDownloadSvg" class="rounded-lg bg-white/10 hover:bg-white/15 border border-white/15 px-3 py-1 text-xs font-semibold">Download SVG</button>
+            <button type="button" id="diagramModalDownloadPng" class="rounded-lg bg-white/10 hover:bg-white/15 border border-white/15 px-3 py-1 text-xs font-semibold">Download PNG</button>
+            <button type="button" id="diagramModalClose" class="rounded-lg bg-rose-500/30 hover:bg-rose-500/40 border border-rose-400/30 px-3 py-1 text-xs font-semibold">Tutup</button>
+          </div>
+        </div>
+      </div>
+      <div id="diagramModalScroll" class="mt-4 flex-1 rounded-2xl bg-slate-950/50 border border-white/10 overflow-auto p-4 cursor-grab active:cursor-grabbing" data-drag-scroll>
+        <div id="diagramModalZoom" class="inline-block">
+          <div id="diagramModalBody"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}

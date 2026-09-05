@@ -1,0 +1,702 @@
+{% extends "base.html" %}
+{% set title = "Hasil Analisis - DINDA Analytics" %}
+{% set header = "Hasil Analisis" %}
+{% set subheader = "Perbandingan hasil clustering HAC vs K-Medoids secara side-by-side, lengkap dengan karakteristik cluster dan ekspor." %}
+
+{% block content %}
+  <div class="rounded-2xl bg-white/10 backdrop-blur-md border border-white/15 shadow-glass p-6">
+    <div class="flex items-start justify-between gap-4">
+      <div>
+        <div class="text-sm text-slate-200/70">Status</div>
+        <div class="mt-1 text-lg font-semibold">{{ job.status }}{% if job.step %} · {{ job.step }}{% endif %}</div>
+      </div>
+      <div class="flex flex-wrap items-center gap-2">
+        <a href="{{ url_for('export', algo='hac', fmt='csv') }}" class="rounded-xl bg-white/10 hover:bg-white/15 border border-white/15 px-4 py-2 text-sm font-medium">Ekspor HAC (CSV)</a>
+        <a href="{{ url_for('export', algo='kmedoids', fmt='csv') }}" class="rounded-xl bg-white/10 hover:bg-white/15 border border-white/15 px-4 py-2 text-sm font-medium">Ekspor K-Medoids (CSV)</a>
+        <a href="{{ url_for('export', algo='gabungan', fmt='xlsx') }}" class="rounded-xl bg-indigo-500/70 hover:bg-indigo-500/80 border border-indigo-400/50 px-4 py-2 text-sm font-medium">Ekspor Gabungan (Excel)</a>
+      </div>
+    </div>
+  </div>
+
+  {% if ai_enabled %}
+  <div class="mt-6 rounded-2xl bg-white/10 backdrop-blur-md border border-white/15 shadow-glass p-6">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-xl font-semibold">Ringkasan</h2>
+      <button onclick="openSummaryModal()" class="rounded-xl bg-indigo-500/20 hover:bg-indigo-500/30 border border-indigo-500/40 px-4 py-2 text-sm font-semibold transition-colors">
+          Buat Ringkasan
+      </button>
+    </div>
+  </div>
+
+  <!-- Modal Ringkasan -->
+  <div id="summaryModal" class="fixed inset-0 z-[9999] flex items-center justify-center hidden">
+    <!-- Backdrop -->
+    <div class="absolute inset-0 bg-black/80 backdrop-blur-sm transition-opacity" onclick="closeSummaryModal()"></div>
+    
+    <!-- Modal Content -->
+    <div class="relative w-full max-w-3xl rounded-2xl bg-[#1e1e2e] border border-white/10 shadow-2xl overflow-hidden transform transition-all scale-100 m-4">
+      <!-- Header -->
+      <div class="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-white/5">
+        <h3 class="text-lg font-semibold text-white">Ringkasan Analisis</h3>
+        <button onclick="closeSummaryModal()" class="text-slate-400 hover:text-white transition-colors rounded-lg p-1 hover:bg-white/10">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+      
+      <!-- Body -->
+      <div class="px-8 py-6 max-h-[70vh] overflow-y-auto bg-[#1e1e2e]">
+        <div id="aiLoading" class="hidden flex flex-col items-center justify-center py-10 space-y-4">
+          <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-indigo-500"></div>
+          <div class="text-slate-300 animate-pulse text-sm">Sedang menganalisis data...</div>
+        </div>
+        
+        <div id="aiSummaryContent" class="hidden prose prose-invert prose-lg max-w-none">
+          <!-- Konten AI akan dimuat di sini -->
+        </div>
+      </div>
+      
+      <!-- Footer -->
+      <div class="px-6 py-4 border-t border-white/10 bg-white/5 flex justify-end">
+        <button onclick="closeSummaryModal()" class="rounded-xl bg-white/10 hover:bg-white/20 border border-white/10 px-5 py-2.5 text-sm font-medium transition-colors text-white">
+          Tutup
+        </button>
+      </div>
+    </div>
+  </div>
+
+  {% endif %}
+
+  <div class="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-4">
+    <div class="rounded-2xl bg-white/10 backdrop-blur-md border border-white/15 shadow-glass p-6">
+      <div class="flex items-center justify-between">
+        <div class="text-lg font-semibold">HAC (Single Linkage)</div>
+        <span class="text-xs inline-flex items-center rounded-full bg-white/10 border border-white/15 px-3 py-1">Euclidean</span>
+      </div>
+
+      <div class="mt-4">
+        <div class="text-sm font-semibold">Karakteristik Cluster</div>
+        {% if karakter_hac %}
+          <div class="mt-3 overflow-auto rounded-2xl border border-white/10">
+            <table class="min-w-full text-xs">
+              <thead class="bg-black/20">
+                <tr>
+                  <th class="px-3 py-2 text-left font-medium text-slate-200/80">Cluster</th>
+                  <th class="px-3 py-2 text-left font-medium text-slate-200/80">Anggota</th>
+                  <th class="px-3 py-2 text-left font-medium text-slate-200/80">Jenis dominan</th>
+                  <th class="px-3 py-2 text-left font-medium text-slate-200/80">Packaging dominan</th>
+                  <th class="px-3 py-2 text-left font-medium text-slate-200/80">Interpretasi</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-white/10">
+                {% for r in karakter_hac %}
+                  <tr class="hover:bg-white/5">
+                    <td class="px-3 py-2">{{ r.cluster }}</td>
+                    <td class="px-3 py-2">{{ r.jumlah_anggota }}</td>
+                    <td class="px-3 py-2">{{ r.jenis_dominan }}</td>
+                    <td class="px-3 py-2">{{ r.packaging_dominan }}</td>
+                    <td class="px-3 py-2 text-slate-200/80">{{ r.interpretasi }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <div class="mt-3 text-sm text-slate-200/70">Hasil HAC belum tersedia.</div>
+        {% endif %}
+      </div>
+
+      <div class="mt-6">
+        <div class="text-sm font-semibold">Ringkasan Kualitas Sederhana</div>
+        {% if metrik and metrik.hac %}
+          <div class="mt-3 grid grid-cols-2 md:grid-cols-3 gap-3 text-sm text-slate-200/85">
+            <div class="rounded-xl bg-emerald-500/10 border border-emerald-500/20 px-4 py-3">
+              <div class="text-xs text-emerald-200/70">Silhouette Score: -1 s/d 1 (semakin tinggi semakin baik)</div>
+              <div class="mt-1 font-semibold text-emerald-400">{{ "%.4f"|format(metrik.hac.silhouette) }}</div>
+            </div>
+            <div class="rounded-xl bg-emerald-500/10 border border-emerald-500/20 px-4 py-3">
+              <div class="text-xs text-emerald-200/70">Davies-Bouldin Index: semakin kecil semakin baik</div>
+              <div class="mt-1 font-semibold text-emerald-400">{{ "%.4f"|format(metrik.hac.dbi) }}</div>
+            </div>
+            <div class="rounded-xl bg-emerald-500/10 border border-emerald-500/20 px-4 py-3">
+              <div class="text-xs text-emerald-200/70">Calinski-Harabasz: semakin besar semakin baik</div>
+              <div class="mt-1 font-semibold text-emerald-400">{{ "%.2f"|format(metrik.hac.chi) }}</div>
+            </div>
+            <div class="rounded-xl bg-black/20 border border-white/10 px-4 py-3">
+              <div class="text-xs text-slate-200/70">Rata-rata dispersi</div>
+              <div class="mt-1 font-semibold">{{ "%.6f"|format(metrik.hac.rata2_dispersi) }}</div>
+            </div>
+            <div class="rounded-xl bg-black/20 border border-white/10 px-4 py-3">
+              <div class="text-xs text-slate-200/70">Std ukuran cluster</div>
+              <div class="mt-1 font-semibold">{{ "%.2f"|format(metrik.hac.std_ukuran_cluster) }}</div>
+            </div>
+          </div>
+        {% else %}
+          <div class="mt-3 text-sm text-slate-200/70">Ringkasan kualitas akan tersedia setelah proses clustering selesai.</div>
+        {% endif %}
+      </div>
+
+      <div class="mt-6">
+        <div class="text-sm font-semibold">Visualisasi Dendrogram (HAC)</div>
+        <div class="mt-2 text-xs text-slate-200/70">
+          <ul class="list-disc list-inside space-y-1 ml-1">
+            <li><strong>Garis Vertikal:</strong> Menunjukkan jarak (Euclidean) antara dua cluster yang digabungkan. Semakin tinggi garis vertikal, semakin besar jarak/ketidakamiripan antar cluster tersebut.</li>
+            <li><strong>Garis Horizontal:</strong> Menunjukkan titik penggabungan cluster. Posisi pada sumbu Y menunjukkan jarak penggabungan.</li>
+            <li><strong>Warna Garis:</strong> Garis dengan warna-warni (misal merah, hijau, oranye) menandakan kelompok data yang masuk dalam satu cluster yang sama. Garis biru (di bagian atas) menghubungkan antar-cluster tersebut.</li>
+          </ul>
+        </div>
+        {% if dendro_url %}
+          <div class="mt-3 overflow-hidden rounded-2xl border border-white/10 bg-black/30">
+            <img src="{{ dendro_url }}" alt="Dendrogram HAC" class="w-full cursor-zoom-in" data-zoom-img data-download-name="dendrogram_hac" />
+          </div>
+        {% else %}
+          <div class="mt-3 text-sm text-slate-200/70">Visualisasi Dendrogram belum tersedia.</div>
+        {% endif %}
+      </div>
+
+      <div class="mt-6">
+        <div class="text-sm font-semibold">Peta Distribusi Anggota</div>
+        <div class="mt-2 text-xs text-slate-200/70">
+          Warna titik menunjukkan cluster. Sumbu X adalah volume_normalisasi (0–1) dan sumbu Y adalah jenis_pestisida_kode.
+        </div>
+        {% if sebaran_hac_url %}
+          <div class="mt-3 overflow-hidden rounded-2xl border border-white/10 bg-black/30">
+            <img src="{{ sebaran_hac_url }}" alt="Sebaran Cluster HAC" class="w-full cursor-zoom-in" data-zoom-img data-download-name="sebaran_hac" />
+          </div>
+        {% else %}
+          <div class="mt-3 text-sm text-slate-200/70">Visualisasi sebaran HAC belum tersedia.</div>
+        {% endif %}
+      </div>
+
+      <div class="mt-6">
+        <div class="text-sm font-semibold">Visualisasi Tambahan</div>
+        <div class="mt-2 text-xs text-slate-200/70">
+          Diagram batang: jumlah anggota per cluster. Diagram komposisi: distribusi jenis pestisida per cluster. Boxplot: sebaran volume per cluster (garis merah = median, garis hijau = rata-rata).
+        </div>
+        <div class="mt-3 space-y-3">
+          <div class="rounded-2xl bg-black/20 border border-white/10 overflow-hidden">
+            <div class="px-4 py-3 text-xs text-slate-200/80 border-b border-white/10">Diagram Batang: Ukuran Cluster (HAC)</div>
+            {% if hac_size_bar_url %}
+              <img src="{{ hac_size_bar_url }}" alt="Ukuran Cluster HAC" class="w-full cursor-zoom-in" data-zoom-img data-download-name="ukuran_cluster_hac" />
+            {% else %}
+              <div class="p-4 text-sm text-slate-200/70">Diagram batang ukuran cluster belum tersedia.</div>
+            {% endif %}
+          </div>
+          <div class="rounded-2xl bg-black/20 border border-white/10 overflow-hidden">
+            <div class="px-4 py-3 text-xs text-slate-200/80 border-b border-white/10">Komposisi Jenis per Cluster (HAC)</div>
+            {% if hac_jenis_url %}
+              <img src="{{ hac_jenis_url }}" alt="Komposisi Jenis HAC" class="w-full cursor-zoom-in" data-zoom-img data-download-name="komposisi_jenis_hac" />
+            {% else %}
+              <div class="p-4 text-sm text-slate-200/70">Komposisi jenis per cluster belum tersedia.</div>
+            {% endif %}
+          </div>
+          <div class="rounded-2xl bg-black/20 border border-white/10 overflow-hidden">
+            <div class="px-4 py-3 text-xs text-slate-200/80 border-b border-white/10">Boxplot: Sebaran Volume per Cluster (HAC)</div>
+            {% if hac_box_url %}
+              <img src="{{ hac_box_url }}" alt="Boxplot Volume HAC" class="w-full cursor-zoom-in" data-zoom-img data-download-name="boxplot_volume_hac" />
+            {% else %}
+              <div class="p-4 text-sm text-slate-200/70">Boxplot volume per cluster belum tersedia.</div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-6">
+        <div class="text-sm font-semibold">Contoh Output (15 baris pertama)</div>
+        {% if hasil_hac %}
+          <div class="mt-3 overflow-auto rounded-2xl border border-white/10">
+            <table class="min-w-full text-xs">
+              <thead class="bg-black/20">
+                <tr>
+                  {% for k in hasil_hac[0].keys() %}
+                    <th class="px-3 py-2 text-left font-medium text-slate-200/80 whitespace-nowrap">{{ k }}</th>
+                  {% endfor %}
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-white/10">
+                {% for row in hasil_hac %}
+                  <tr class="hover:bg-white/5">
+                    {% for k, v in row.items() %}
+                      <td class="px-3 py-2 text-slate-200/80 whitespace-nowrap">{{ v }}</td>
+                    {% endfor %}
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <div class="mt-3 text-sm text-slate-200/70">Jalankan HAC di menu Proses Clustering.</div>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="rounded-2xl bg-white/10 backdrop-blur-md border border-white/15 shadow-glass p-6">
+      <div class="flex items-center justify-between">
+        <div class="text-lg font-semibold">K-Medoids (PAM)</div>
+        <span class="text-xs inline-flex items-center rounded-full bg-white/10 border border-white/15 px-3 py-1">Euclidean</span>
+      </div>
+
+      <div class="mt-4">
+        <div class="text-sm font-semibold">Karakteristik Cluster</div>
+        {% if karakter_km %}
+          <div class="mt-3 overflow-auto rounded-2xl border border-white/10">
+            <table class="min-w-full text-xs">
+              <thead class="bg-black/20">
+                <tr>
+                  <th class="px-3 py-2 text-left font-medium text-slate-200/80">Cluster</th>
+                  <th class="px-3 py-2 text-left font-medium text-slate-200/80">Anggota</th>
+                  <th class="px-3 py-2 text-left font-medium text-slate-200/80">Jenis dominan</th>
+                  <th class="px-3 py-2 text-left font-medium text-slate-200/80">Packaging dominan</th>
+                  <th class="px-3 py-2 text-left font-medium text-slate-200/80">Interpretasi</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-white/10">
+                {% for r in karakter_km %}
+                  <tr class="hover:bg-white/5">
+                    <td class="px-3 py-2">{{ r.cluster }}</td>
+                    <td class="px-3 py-2">{{ r.jumlah_anggota }}</td>
+                    <td class="px-3 py-2">{{ r.jenis_dominan }}</td>
+                    <td class="px-3 py-2">{{ r.packaging_dominan }}</td>
+                    <td class="px-3 py-2 text-slate-200/80">{{ r.interpretasi }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <div class="mt-3 text-sm text-slate-200/70">Hasil K-Medoids belum tersedia.</div>
+        {% endif %}
+      </div>
+
+      <div class="mt-6">
+        <div class="text-sm font-semibold">Ringkasan Kualitas Sederhana</div>
+        {% if metrik and metrik.kmedoids %}
+          <div class="mt-3 grid grid-cols-2 md:grid-cols-3 gap-3 text-sm text-slate-200/85">
+            <div class="rounded-xl bg-indigo-500/10 border border-indigo-500/20 px-4 py-3">
+              <div class="text-xs text-indigo-200/70">Silhouette Score (-1 s/d 1, ↑ better)</div>
+              <div class="mt-1 font-semibold text-indigo-400">{{ "%.4f"|format(metrik.kmedoids.silhouette) }}</div>
+            </div>
+            <div class="rounded-xl bg-indigo-500/10 border border-indigo-500/20 px-4 py-3">
+              <div class="text-xs text-indigo-200/70">Davies-Bouldin Index (↓ better)</div>
+              <div class="mt-1 font-semibold text-indigo-400">{{ "%.4f"|format(metrik.kmedoids.dbi) }}</div>
+            </div>
+            <div class="rounded-xl bg-indigo-500/10 border border-indigo-500/20 px-4 py-3">
+              <div class="text-xs text-indigo-200/70">Calinski-Harabasz (↑ better)</div>
+              <div class="mt-1 font-semibold text-indigo-400">{{ "%.2f"|format(metrik.kmedoids.chi) }}</div>
+            </div>
+            <div class="rounded-xl bg-black/20 border border-white/10 px-4 py-3">
+              <div class="text-xs text-slate-200/70">Rata-rata dispersi</div>
+              <div class="mt-1 font-semibold">{{ "%.6f"|format(metrik.kmedoids.rata2_dispersi) }}</div>
+            </div>
+            <div class="rounded-xl bg-black/20 border border-white/10 px-4 py-3">
+              <div class="text-xs text-slate-200/70">Std ukuran cluster</div>
+              <div class="mt-1 font-semibold">{{ "%.2f"|format(metrik.kmedoids.std_ukuran_cluster) }}</div>
+            </div>
+          </div>
+        {% else %}
+          <div class="mt-3 text-sm text-slate-200/70">Ringkasan kualitas akan tersedia setelah proses clustering selesai.</div>
+        {% endif %}
+      </div>
+
+      <div class="mt-6">
+        <div class="text-sm font-semibold">Peta Distribusi Anggota</div>
+        <div class="mt-2 text-xs text-slate-200/70">
+          Warna titik menunjukkan cluster. Sumbu X adalah volume_normalisasi (0–1) dan sumbu Y adalah jenis_pestisida_kode. Tanda X merah adalah medoid (contoh pusat cluster K-Medoids).
+        </div>
+        {% if sebaran_km_url %}
+          <div class="mt-3 overflow-hidden rounded-2xl border border-white/10 bg-black/30">
+            <img src="{{ sebaran_km_url }}" alt="Sebaran Cluster K-Medoids" class="w-full cursor-zoom-in" data-zoom-img data-download-name="sebaran_kmedoids" />
+          </div>
+        {% else %}
+          <div class="mt-3 text-sm text-slate-200/70">Visualisasi sebaran K-Medoids belum tersedia.</div>
+        {% endif %}
+      </div>
+
+      <div class="mt-6">
+        <div class="text-sm font-semibold">Visualisasi Tambahan</div>
+        <div class="mt-2 text-xs text-slate-200/70">
+          Diagram batang: jumlah anggota per cluster. Diagram komposisi: distribusi jenis pestisida per cluster. Boxplot: sebaran volume per cluster (garis merah = median, garis hijau = rata-rata).
+        </div>
+        <div class="mt-3 space-y-3">
+          <div class="rounded-2xl bg-black/20 border border-white/10 overflow-hidden">
+            <div class="px-4 py-3 text-xs text-slate-200/80 border-b border-white/10">Diagram Batang: Ukuran Cluster (K-Medoids)</div>
+            {% if km_size_bar_url %}
+              <img src="{{ km_size_bar_url }}" alt="Ukuran Cluster K-Medoids" class="w-full cursor-zoom-in" data-zoom-img data-download-name="ukuran_cluster_kmedoids" />
+            {% else %}
+              <div class="p-4 text-sm text-slate-200/70">Diagram batang ukuran cluster belum tersedia.</div>
+            {% endif %}
+          </div>
+          <div class="rounded-2xl bg-black/20 border border-white/10 overflow-hidden">
+            <div class="px-4 py-3 text-xs text-slate-200/80 border-b border-white/10">Komposisi Jenis per Cluster (K-Medoids)</div>
+            {% if km_jenis_url %}
+              <img src="{{ km_jenis_url }}" alt="Komposisi Jenis K-Medoids" class="w-full cursor-zoom-in" data-zoom-img data-download-name="komposisi_jenis_kmedoids" />
+            {% else %}
+              <div class="p-4 text-sm text-slate-200/70">Komposisi jenis per cluster belum tersedia.</div>
+            {% endif %}
+          </div>
+          <div class="rounded-2xl bg-black/20 border border-white/10 overflow-hidden">
+            <div class="px-4 py-3 text-xs text-slate-200/80 border-b border-white/10">Boxplot: Sebaran Volume per Cluster (K-Medoids)</div>
+            {% if km_box_url %}
+              <img src="{{ km_box_url }}" alt="Boxplot Volume K-Medoids" class="w-full cursor-zoom-in" data-zoom-img data-download-name="boxplot_volume_kmedoids" />
+            {% else %}
+              <div class="p-4 text-sm text-slate-200/70">Boxplot volume per cluster belum tersedia.</div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-6">
+        <div class="text-sm font-semibold">Contoh Output (15 baris pertama)</div>
+        {% if hasil_km %}
+          <div class="mt-3 overflow-auto rounded-2xl border border-white/10">
+            <table class="min-w-full text-xs">
+              <thead class="bg-black/20">
+                <tr>
+                  {% for k in hasil_km[0].keys() %}
+                    <th class="px-3 py-2 text-left font-medium text-slate-200/80 whitespace-nowrap">{{ k }}</th>
+                  {% endfor %}
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-white/10">
+                {% for row in hasil_km %}
+                  <tr class="hover:bg-white/5">
+                    {% for k, v in row.items() %}
+                      <td class="px-3 py-2 text-slate-200/80 whitespace-nowrap">{{ v }}</td>
+                    {% endfor %}
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <div class="mt-3 text-sm text-slate-200/70">Jalankan K-Medoids di menu Proses Clustering.</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="mt-6 rounded-2xl bg-white/10 backdrop-blur-md border border-white/15 shadow-glass p-6">
+    <div class="text-lg font-semibold">Log Proses</div>
+    <div class="mt-3 h-72 overflow-auto rounded-2xl bg-black/30 border border-white/10 p-4">
+      <pre id="logBox" class="text-xs whitespace-pre-wrap text-slate-200/85"></pre>
+    </div>
+  </div>
+
+  <div id="imgModal" class="hidden fixed inset-0 z-50 bg-black/70 backdrop-blur-sm">
+    <div class="mx-auto max-w-7xl h-full p-4 flex flex-col">
+      <div class="rounded-2xl bg-slate-950/80 border border-white/15 shadow-glass p-4">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div class="text-sm font-semibold" id="imgModalTitle"></div>
+          <div class="flex flex-wrap items-center gap-2">
+            <button type="button" id="imgModalZoomOut" class="rounded-lg bg-white/10 hover:bg-white/15 border border-white/15 px-3 py-1 text-xs font-semibold">Zoom -</button>
+            <button type="button" id="imgModalZoomReset" class="rounded-lg bg-white/10 hover:bg-white/15 border border-white/15 px-3 py-1 text-xs font-semibold">Reset</button>
+            <button type="button" id="imgModalZoomIn" class="rounded-lg bg-white/10 hover:bg-white/15 border border-white/15 px-3 py-1 text-xs font-semibold">Zoom +</button>
+            <button type="button" id="imgModalDownload" class="rounded-lg bg-white/10 hover:bg-white/15 border border-white/15 px-3 py-1 text-xs font-semibold">Download</button>
+            <button type="button" id="imgModalClose" class="rounded-lg bg-rose-500/30 hover:bg-rose-500/40 border border-rose-400/30 px-3 py-1 text-xs font-semibold">Tutup</button>
+          </div>
+        </div>
+      </div>
+      <div id="imgModalScroll" class="mt-4 flex-1 rounded-2xl bg-slate-950/50 border border-white/10 overflow-auto p-4 cursor-grab active:cursor-grabbing">
+        <div id="imgModalZoom" class="inline-block">
+          <img id="imgModalImg" alt="Gambar" class="max-w-none select-none" draggable="false" />
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      const jobId = "{{ job.id }}";
+      const logBox = document.getElementById("logBox");
+
+      async function refreshLogs() {
+        const r = await fetch(`/api/job/${jobId}/logs`);
+        if (!r.ok || !logBox) return;
+        const data = await r.json();
+        logBox.textContent = (data.logs || []).join("\n");
+        if (["preprocessing", "clustering"].includes(data.status)) {
+          setTimeout(refreshLogs, 1200);
+        }
+      }
+      refreshLogs();
+
+      const modal = document.getElementById("imgModal");
+      const modalImg = document.getElementById("imgModalImg");
+      const modalTitle = document.getElementById("imgModalTitle");
+      const zoomTarget = document.getElementById("imgModalZoom");
+      const scrollBox = document.getElementById("imgModalScroll");
+      const btnClose = document.getElementById("imgModalClose");
+      const btnIn = document.getElementById("imgModalZoomIn");
+      const btnOut = document.getElementById("imgModalZoomOut");
+      const btnReset = document.getElementById("imgModalZoomReset");
+      const btnDl = document.getElementById("imgModalDownload");
+      if (!modal || !modalImg || !modalTitle || !zoomTarget || !scrollBox || !btnClose || !btnIn || !btnOut || !btnReset || !btnDl) {
+        return;
+      }
+
+      let zoom = 1;
+      let currentSrc = "";
+      let currentName = "gambar";
+
+      function applyZoom() {
+        zoomTarget.style.transformOrigin = "0 0";
+        zoomTarget.style.transform = `scale(${zoom})`;
+      }
+
+      function openModal(src, name) {
+        currentSrc = src;
+        currentName = name || "gambar";
+        modalTitle.textContent = currentName;
+        modalImg.src = src;
+        zoom = 1.2;
+        applyZoom();
+        scrollBox.scrollLeft = 0;
+        scrollBox.scrollTop = 0;
+        modal.classList.remove("hidden");
+      }
+
+      function closeModal() {
+        modal.classList.add("hidden");
+      }
+
+      document.querySelectorAll("[data-zoom-img]").forEach((img) => {
+        img.addEventListener("click", () => {
+          const src = img.getAttribute("src") || "";
+          const name = img.getAttribute("data-download-name") || img.getAttribute("alt") || "gambar";
+          openModal(src, name);
+        });
+      });
+
+      btnClose.addEventListener("click", closeModal);
+      modal.addEventListener("click", (e) => {
+        if (e.target === modal) closeModal();
+      });
+      btnIn.addEventListener("click", () => {
+        zoom = Math.min(4, Math.round((zoom + 0.1) * 10) / 10);
+        applyZoom();
+      });
+      btnOut.addEventListener("click", () => {
+        zoom = Math.max(0.4, Math.round((zoom - 0.1) * 10) / 10);
+        applyZoom();
+      });
+      btnReset.addEventListener("click", () => {
+        zoom = 1.2;
+        applyZoom();
+      });
+
+      btnDl.addEventListener("click", () => {
+        const a = document.createElement("a");
+        a.href = currentSrc;
+        a.download = `${currentName}.png`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      });
+
+      let isDown = false;
+      let startX = 0;
+      let startY = 0;
+      let startLeft = 0;
+      let startTop = 0;
+      scrollBox.addEventListener("pointerdown", (e) => {
+        isDown = true;
+        startX = e.clientX;
+        startY = e.clientY;
+        startLeft = scrollBox.scrollLeft;
+        startTop = scrollBox.scrollTop;
+        scrollBox.setPointerCapture(e.pointerId);
+      });
+      scrollBox.addEventListener("pointermove", (e) => {
+        if (!isDown) return;
+        const dx = e.clientX - startX;
+        const dy = e.clientY - startY;
+        scrollBox.scrollLeft = startLeft - dx;
+        scrollBox.scrollTop = startTop - dy;
+      });
+      const up = () => {
+        isDown = false;
+      };
+      scrollBox.addEventListener("pointerup", up);
+      scrollBox.addEventListener("pointercancel", up);
+      scrollBox.addEventListener("pointerleave", up);
+    });
+  </script>
+  {% if ai_enabled %}
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script>
+    // --- Summary Logic ---
+    const modal = document.getElementById('summaryModal');
+    const contentDiv = document.getElementById('aiSummaryContent');
+    const loadingDiv = document.getElementById('aiLoading');
+    let hasGenerated = false;
+
+    function openSummaryModal() {
+        modal.classList.remove('hidden');
+        if (!hasGenerated) {
+            generateSummary();
+        }
+    }
+
+    function closeSummaryModal() {
+        modal.classList.add('hidden');
+    }
+
+    async function generateSummary() {
+      contentDiv.classList.add('hidden');
+      loadingDiv.classList.remove('hidden');
+
+      try {
+        const response = await fetch('/api/generate_summary', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({})
+        });
+
+        const data = await response.json();
+        
+        if (data.error) {
+          contentDiv.innerHTML = `<div class="p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400">Error: ${data.error}</div>`;
+        } else {
+          // Safety check for marked
+          if (typeof marked !== 'undefined') {
+            contentDiv.innerHTML = marked.parse(data.summary);
+          } else {
+            contentDiv.innerText = data.summary;
+          }
+          hasGenerated = true;
+        }
+      } catch (err) {
+        contentDiv.innerHTML = `<div class="p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400">Gagal menghubungi server: ${err.message}</div>`;
+      } finally {
+        loadingDiv.classList.add('hidden');
+        contentDiv.classList.remove('hidden');
+      }
+    }
+
+    // --- Chat Logic ---
+    function toggleChat() {
+        const chatWindow = document.getElementById('chatWindow');
+        chatWindow.classList.toggle('hidden');
+        if (!chatWindow.classList.contains('hidden')) {
+            document.getElementById('chatInput').focus();
+        }
+    }
+
+    function handleChatKey(e) {
+        if (e.key === 'Enter') {
+            sendChatMessage();
+        }
+    }
+
+    async function sendChatMessage() {
+        const input = document.getElementById('chatInput');
+        const message = input.value.trim();
+        const sendBtn = document.getElementById('sendChatBtn');
+
+        if (!message) return;
+
+        // User Message
+        appendMessage(message, 'user');
+        input.value = '';
+        input.disabled = true;
+        sendBtn.disabled = true;
+
+        // Loading
+        const loadingId = appendLoading();
+
+        try {
+            const response = await fetch('/api/chat_ai', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ message: message })
+            });
+
+            const data = await response.json();
+            removeLoading(loadingId);
+
+            if (data.error) {
+                appendMessage(`Error: ${data.error}`, 'system');
+            } else {
+                appendMessage(data.reply, 'ai');
+            }
+        } catch (err) {
+            removeLoading(loadingId);
+            appendMessage(`Gagal terhubung: ${err.message}`, 'system');
+        } finally {
+            input.disabled = false;
+            sendBtn.disabled = false;
+            input.focus();
+        }
+    }
+
+    function appendMessage(text, sender) {
+        const messagesDiv = document.getElementById('chatMessages');
+        const div = document.createElement('div');
+        div.className = `flex flex-col ${sender === 'user' ? 'items-end' : 'items-start'} gap-1 animate-fade-in`;
+        
+        let bubbleClass = '';
+        if (sender === 'user') {
+            bubbleClass = 'bg-indigo-600 text-white rounded-xl rounded-tr-none border border-indigo-500 shadow-lg shadow-indigo-500/20';
+        } else if (sender === 'ai') {
+            bubbleClass = 'bg-white/10 text-slate-200 rounded-xl rounded-tl-none border border-white/10 prose prose-invert prose-sm max-w-none shadow-lg';
+        } else { // system
+            bubbleClass = 'bg-red-500/20 text-red-300 rounded-xl border border-red-500/30';
+        }
+
+        let contentHtml = text;
+        if (sender === 'ai') {
+             if (typeof marked !== 'undefined') {
+                 contentHtml = marked.parse(text);
+             }
+        } else {
+             // Escape user input to prevent XSS
+             contentHtml = text.replace(/&/g, "&amp;")
+                               .replace(/</g, "&lt;")
+                               .replace(/>/g, "&gt;")
+                               .replace(/"/g, "&quot;")
+                               .replace(/'/g, "&#039;");
+        }
+
+        div.innerHTML = `
+            <div class="${bubbleClass} px-3 py-2 text-sm max-w-[85%] break-words">
+                ${contentHtml}
+            </div>
+            <span class="text-[10px] text-slate-500 ${sender === 'user' ? 'mr-1' : 'ml-1'}">
+                ${sender === 'user' ? 'Anda' : (sender === 'ai' ? 'AI Assistant' : 'System')}
+            </span>
+        `;
+        
+        messagesDiv.appendChild(div);
+        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    }
+
+    function appendLoading() {
+        const messagesDiv = document.getElementById('chatMessages');
+        const id = 'loading-' + Date.now();
+        const div = document.createElement('div');
+        div.id = id;
+        div.className = 'flex flex-col items-start gap-1';
+        div.innerHTML = `
+            <div class="bg-white/10 px-3 py-2 rounded-xl rounded-tl-none border border-white/10 flex items-center gap-1 shadow-lg">
+                <div class="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce"></div>
+                <div class="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce delay-75"></div>
+                <div class="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce delay-150"></div>
+            </div>
+        `;
+        messagesDiv.appendChild(div);
+        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        return id;
+    }
+
+    function removeLoading(id) {
+        const el = document.getElementById(id);
+        if (el) el.remove();
+    }
+  </script>
+  {% endif %}
+{% endblock %}

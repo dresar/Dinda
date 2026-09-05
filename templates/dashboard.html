@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% set title = "Dashboard - DINDA Analytics" %}
+{% set header = "Dashboard" %}
+{% set subheader = "Ringkasan dataset, status proses, dan akses cepat ke alur KDD." %}
+
+{% block content %}
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+    <div class="rounded-2xl bg-white/10 backdrop-blur-md border border-white/15 shadow-glass p-5">
+      <div class="text-sm text-slate-200/80">Total Job</div>
+      <div class="mt-2 text-3xl font-semibold">{{ ringkas.total_job }}</div>
+    </div>
+    <div class="rounded-2xl bg-white/10 backdrop-blur-md border border-white/15 shadow-glass p-5">
+      <div class="text-sm text-slate-200/80">Job Selesai</div>
+      <div class="mt-2 text-3xl font-semibold">{{ ringkas.job_selesai }}</div>
+    </div>
+    <div class="rounded-2xl bg-white/10 backdrop-blur-md border border-white/15 shadow-glass p-5">
+      <div class="text-sm text-slate-200/80">Job Aktif</div>
+      {% if job %}
+        <div class="mt-2 text-2xl font-semibold">#{{ job.id }}</div>
+        <div class="mt-1 text-sm text-slate-200/80">{{ job.original_filename }}</div>
+        <div class="mt-3 inline-flex items-center rounded-full bg-white/10 border border-white/15 px-3 py-1 text-xs">
+          Status: {{ job.status }}{% if job.step %} · {{ job.step }}{% endif %}
+        </div>
+      {% else %}
+        <div class="mt-2 text-sm text-slate-200/80">Belum ada job. Silakan unggah CSV untuk memulai.</div>
+        <div class="mt-4">
+          <a href="{{ url_for('unggah_data') }}" class="inline-flex rounded-xl bg-indigo-500/70 hover:bg-indigo-500/80 border border-indigo-400/50 px-4 py-2 text-sm font-medium">Mulai Unggah</a>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-4">
+    <div class="rounded-2xl bg-white/10 backdrop-blur-md border border-white/15 shadow-glass p-5">
+      <div class="flex items-center justify-between">
+        <div class="text-lg font-semibold">Panduan Cepat</div>
+      </div>
+      <ol class="mt-4 space-y-3 text-sm text-slate-200/90 list-decimal pl-5">
+        <li>Unggah file CSV sesuai format kolom penelitian.</li>
+        <li>Jalankan prapemrosesan (missing values, duplikasi, encoding, normalisasi).</li>
+        <li>Jalankan clustering HAC dan/atau K-Medoids.</li>
+        <li>Bandingkan hasil dan ekspor untuk dokumentasi.</li>
+      </ol>
+    </div>
+
+    <div class="rounded-2xl bg-white/10 backdrop-blur-md border border-white/15 shadow-glass p-5">
+      <div class="flex items-center justify-between">
+        <div class="text-lg font-semibold">Job Terbaru</div>
+      </div>
+      <div class="mt-4 overflow-hidden rounded-xl border border-white/10">
+        <table class="w-full text-sm">
+          <thead class="bg-black/20 text-slate-200/80">
+            <tr>
+              <th class="px-4 py-3 text-left font-medium">ID</th>
+              <th class="px-4 py-3 text-left font-medium">Waktu</th>
+              <th class="px-4 py-3 text-left font-medium">Status</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-white/10">
+            {% for j in ringkas.job_terbaru %}
+              <tr class="hover:bg-white/5">
+                <td class="px-4 py-3">#{{ j.id }}</td>
+                <td class="px-4 py-3 text-slate-200/80">{{ j.created_at }}</td>
+                <td class="px-4 py-3">
+                  <span class="inline-flex items-center rounded-full bg-white/10 border border-white/15 px-3 py-1 text-xs">{{ j.status }}</span>
+                </td>
+              </tr>
+            {% if ringkas.job_terbaru|length == 0 %}
+              <tr>
+                <td colspan="3" class="px-4 py-6 text-center text-slate-200/70">Belum ada job.</td>
+              </tr>
+            {% endif %}
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+{% endblock %}
+

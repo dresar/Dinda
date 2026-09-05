@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% set title = "Proses Clustering - DINDA Analytics" %}
+{% set header = "Proses Clustering" %}
+{% set subheader = "Jalankan HAC (Single Linkage) dan K-Medoids (PAM) dengan transparansi proses." %}
+
+{% block content %}
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+    <div class="lg:col-span-2 rounded-2xl bg-white/10 backdrop-blur-md border border-white/15 shadow-glass p-6">
+      <div class="flex items-start justify-between gap-4">
+        <div>
+          <div class="text-sm text-slate-200/70">Status</div>
+          <div class="mt-1 text-lg font-semibold">{{ job.status }}{% if job.step %} · {{ job.step }}{% endif %}</div>
+          <div class="mt-1 text-xs text-slate-200/70">Sumber data: {{ job.preprocessed_path }}</div>
+        </div>
+        <a href="{{ url_for('hasil') }}" class="rounded-xl bg-white/10 hover:bg-white/15 border border-white/15 px-4 py-2 text-sm font-medium">Buka Hasil</a>
+      </div>
+
+      <div class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="rounded-2xl bg-black/20 border border-white/10 p-5">
+          <div class="text-sm font-semibold">Parameter HAC</div>
+          <div class="mt-2 text-xs text-slate-200/70">Metode: Euclidean Distance · Single Linkage</div>
+          <div class="mt-4">
+            <label class="text-xs text-slate-200/70">Jumlah cluster</label>
+            <input name="jumlah_cluster_hac" form="formCluster" type="number" min="2" value="4" class="mt-2 w-full rounded-xl bg-white/10 border border-white/15 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-400/60" />
+          </div>
+        </div>
+
+        <div class="rounded-2xl bg-black/20 border border-white/10 p-5">
+          <div class="text-sm font-semibold">Parameter K-Medoids</div>
+          <div class="mt-2 text-xs text-slate-200/70">Metode: objek aktual sebagai medoid · Euclidean Distance</div>
+          <div class="mt-4 grid grid-cols-2 gap-3">
+            <div>
+              <label class="text-xs text-slate-200/70">Nilai k</label>
+              <input name="k_kmedoids" form="formCluster" type="number" min="2" value="4" class="mt-2 w-full rounded-xl bg-white/10 border border-white/15 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-400/60" />
+            </div>
+            <div>
+              <label class="text-xs text-slate-200/70">Maks. iterasi</label>
+              <input name="max_iter" form="formCluster" type="number" min="1" value="25" class="mt-2 w-full rounded-xl bg-white/10 border border-white/15 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-400/60" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <form id="formCluster" method="post" class="mt-5">
+        <button name="jalankan" value="keduanya" type="submit" class="w-full rounded-xl bg-indigo-500/70 hover:bg-indigo-500/80 border border-indigo-400/50 px-4 py-3 text-sm font-semibold transition-all duration-200 shadow-lg shadow-indigo-500/20">
+          Jalankan Analisis Clustering (HAC & K-Medoids)
+        </button>
+      </form>
+
+      <div class="mt-6 rounded-2xl bg-black/20 border border-white/10 p-5">
+        <div class="text-sm font-semibold">Visualisasi Dendrogram (HAC)</div>
+        <div class="mt-2 text-xs text-slate-200/70">
+          <ul class="list-disc list-inside space-y-1 ml-1">
+            <li><strong>Garis Vertikal:</strong> Jarak Euclidean antar cluster.</li>
+            <li><strong>Garis Horizontal:</strong> Titik penggabungan cluster.</li>
+            <li><strong>Warna:</strong> Cluster berbeda berdasarkan threshold.</li>
+          </ul>
+        </div>
+        {% if dendro_url %}
+          <div class="mt-4 overflow-hidden rounded-2xl border border-white/10 bg-black/30">
+            <img src="{{ dendro_url }}" alt="Dendrogram HAC" class="w-full" />
+          </div>
+        {% else %}
+          <div class="mt-3 text-sm text-slate-200/70">Dendrogram akan muncul setelah HAC selesai dijalankan.</div>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="rounded-2xl bg-white/10 backdrop-blur-md border border-white/15 shadow-glass p-6">
+      <div class="text-lg font-semibold">Log Proses</div>
+      <div class="mt-3 h-[34rem] overflow-auto rounded-2xl bg-black/30 border border-white/10 p-4">
+        <pre id="logBox" class="text-xs whitespace-pre-wrap text-slate-200/85"></pre>
+      </div>
+      <div class="mt-4 grid grid-cols-1 gap-2">
+        <a href="{{ url_for('hasil') }}" class="rounded-xl bg-emerald-500/20 hover:bg-emerald-500/25 border border-emerald-400/30 px-4 py-2 text-sm font-semibold text-center">
+          Lihat Perbandingan Hasil
+        </a>
+        <a href="{{ url_for('export', algo='gabungan', fmt='csv') }}" class="rounded-xl bg-white/10 hover:bg-white/15 border border-white/15 px-4 py-2 text-sm font-semibold text-center">
+          Ekspor Gabungan (CSV)
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const jobId = {{ job.id }};
+    const logBox = document.getElementById("logBox");
+    // Flag untuk menandai apakah kita sedang memantau proses yang berjalan
+    // Kita hanya ingin redirect jika status berubah dari 'clustering' ke 'done'
+    // Jika saat load sudah 'done', jangan redirect agar user bisa re-run.
+    let isMonitoring = false;
+
+    async function refreshLogs() {
+      const r = await fetch(`/api/job/${jobId}/logs`);
+      if (!r.ok) return;
+      const data = await r.json();
+      logBox.textContent = (data.logs || []).join("\n");
+      logBox.scrollTop = logBox.scrollHeight;
+
+      // Jika statusnya clustering, kita set monitoring true
+      if (["preprocessing", "clustering"].includes(data.status)) {
+        isMonitoring = true;
+        setTimeout(refreshLogs, 1200);
+      } 
+      // Jika done DAN kita sedang monitoring (artinya baru saja selesai), maka redirect
+      else if (data.status === 'done' && isMonitoring) {
+         window.location.href = "{{ url_for('hasil') }}";
+      }
+      // Jika status done tapi isMonitoring false (artinya pas load page sudah done),
+      // maka diam saja (tidak redirect).
+    }
+    
+    // Cek status awal untuk inisialisasi isMonitoring
+    // Namun karena refreshLogs async, kita bisa manfaatkan closure variable di atas.
+    // Panggil sekali saat load.
+    refreshLogs();
+  </script>
+{% endblock %}
+

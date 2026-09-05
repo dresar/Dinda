@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% set title = "Unggah Data - DINDA Analytics" %}
+{% set header = "Unggah Data" %}
+{% set subheader = "Unggah dataset CSV transaksi untuk memulai alur analitik." %}
+
+{% block content %}
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+    <div class="rounded-2xl bg-white/10 backdrop-blur-md border border-white/15 shadow-glass p-6">
+      <form method="post" enctype="multipart/form-data" class="space-y-4">
+        <div id="dropzone" class="rounded-2xl border border-dashed border-white/25 bg-black/20 p-8 text-center cursor-pointer hover:bg-black/25 transition">
+          <div class="text-lg font-semibold">Drag & drop CSV di sini</div>
+          <div class="mt-1 text-sm text-slate-200/70">atau klik untuk memilih file</div>
+          <div class="mt-4 inline-flex items-center rounded-full bg-white/10 border border-white/15 px-3 py-1 text-xs text-slate-200/80">Hanya .csv</div>
+          <input id="fileInput" name="file" type="file" accept=".csv" class="hidden" />
+          <div id="fileName" class="mt-4 text-sm text-slate-200/80"></div>
+        </div>
+        <button type="submit" class="w-full rounded-xl bg-indigo-500/70 hover:bg-indigo-500/80 border border-indigo-400/50 px-4 py-3 text-sm font-semibold">
+          Unggah dan Buat Job
+        </button>
+        <div class="text-xs text-slate-200/70">
+          Catatan: sistem menyimpan file ke folder <span class="font-semibold">./uploads/</span> dan metadata proses ke SQLite.
+        </div>
+      </form>
+    </div>
+
+    <div class="rounded-2xl bg-white/10 backdrop-blur-md border border-white/15 shadow-glass p-6">
+      <div class="text-lg font-semibold">Format Kolom Wajib</div>
+      <div class="mt-2 text-sm text-slate-200/80">Pastikan file CSV memiliki kolom berikut dengan nama persis:</div>
+      <ul class="mt-4 space-y-2 text-sm">
+        {% for k in kolom_wajib %}
+          <li class="flex items-center justify-between rounded-xl bg-black/20 border border-white/10 px-4 py-3">
+            <span class="font-medium">{{ k }}</span>
+            <span class="text-xs text-slate-200/70">wajib</span>
+          </li>
+        {% endfor %}
+      </ul>
+      <div class="mt-5 rounded-xl bg-black/20 border border-white/10 p-4 text-sm text-slate-200/80">
+        Setelah upload, jalankan prapemrosesan untuk:
+        <ul class="mt-2 list-disc pl-5 space-y-1">
+          <li>Hapus missing values dan duplikasi</li>
+          <li>Encoding kategori (jenis pestisida & packaging)</li>
+          <li>Min-Max Normalization untuk volume</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const dropzone = document.getElementById("dropzone");
+    const fileInput = document.getElementById("fileInput");
+    const fileName = document.getElementById("fileName");
+
+    function setName(f) {
+      if (!f) {
+        fileName.textContent = "";
+        return;
+      }
+      fileName.textContent = "File dipilih: " + f.name;
+    }
+
+    dropzone.addEventListener("click", () => fileInput.click());
+    fileInput.addEventListener("change", (e) => setName(e.target.files[0]));
+
+    dropzone.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      dropzone.classList.add("ring-2", "ring-indigo-400/60");
+    });
+    dropzone.addEventListener("dragleave", () => {
+      dropzone.classList.remove("ring-2", "ring-indigo-400/60");
+    });
+    dropzone.addEventListener("drop", (e) => {
+      e.preventDefault();
+      dropzone.classList.remove("ring-2", "ring-indigo-400/60");
+      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+        fileInput.files = e.dataTransfer.files;
+        setName(e.dataTransfer.files[0]);
+      }
+    });
+  </script>
+{% endblock %}
+

@@ -1,0 +1,360 @@
+{% extends "base.html" %}
+{% set title = "Prapemrosesan - DINDA Analytics" %}
+{% set header = "Prapemrosesan" %}
+{% set subheader = "Pembersihan data, encoding label kategori, dan normalisasi volume (Min-Max)." %}
+
+{% block content %}
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+    <div class="lg:col-span-2 rounded-2xl bg-white/10 backdrop-blur-md border border-white/15 shadow-glass p-6">
+      <div class="flex items-center justify-between gap-3">
+        <div>
+          <div class="text-sm text-slate-200/70">Status</div>
+          <div class="mt-1 text-lg font-semibold">{{ job.status }}{% if job.step %} · {{ job.step }}{% endif %}</div>
+          <div class="mt-1 text-xs text-slate-200/70">File: {{ job.original_filename }}</div>
+        </div>
+        <div class="flex items-center gap-2">
+          <form method="post" onsubmit="this.querySelector('button').disabled=true; this.querySelector('button').innerHTML='Memproses...';">
+            <button type="submit" class="rounded-xl bg-indigo-500/70 hover:bg-indigo-500/80 border border-indigo-400/50 px-4 py-2 text-sm font-semibold">
+              Jalankan Prapemrosesan
+            </button>
+          </form>
+          {% if job.preprocessed_path %}
+            <a href="{{ url_for('clustering') }}" class="rounded-xl bg-emerald-500/70 hover:bg-emerald-500/80 border border-emerald-400/50 px-4 py-2 text-sm font-semibold text-white no-underline">
+              Lanjut ke Clustering
+            </a>
+          {% else %}
+            <button type="button" class="rounded-xl bg-emerald-500/20 border border-emerald-400/30 px-4 py-2 text-sm font-semibold cursor-not-allowed" title="Jalankan prapemrosesan terlebih dahulu" disabled>
+              Lanjut ke Clustering
+            </button>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="mt-5 grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="rounded-2xl bg-black/20 border border-white/10 p-4">
+          <div class="text-sm font-semibold">Preview Data Mentah</div>
+          {% if preview_raw %}
+            <div class="mt-3 flex flex-col gap-3 text-xs text-slate-200/70">
+              <div class="flex justify-between items-center">
+                <div>Total {{ preview_raw.total_rows }} baris · Halaman {{ preview_raw.page }}/{{ preview_raw.total_pages }}</div>
+                
+                {# Pagination Logic #}
+                {% set start_page = preview_raw.page - 2 %}
+                {% if start_page < 1 %}{% set start_page = 1 %}{% endif %}
+                {% set end_page = start_page + 4 %}
+                {% if end_page > preview_raw.total_pages %}{% set end_page = preview_raw.total_pages %}{% endif %}
+                {% if end_page - start_page < 4 %}
+                   {% set start_page = end_page - 4 %}
+                   {% if start_page < 1 %}{% set start_page = 1 %}{% endif %}
+                {% endif %}
+
+                <div class="flex items-center gap-1">
+                  <!-- Prev -->
+                  <a href="{{ url_for('prapemrosesan', page_raw=(preview_raw.page-1 if preview_raw.page>1 else 1), page_pre=(preview_pre.page if preview_pre else 1)) }}" 
+                     class="px-2 py-1 rounded bg-white/5 hover:bg-white/10 border border-white/10 {{ 'opacity-50 pointer-events-none' if preview_raw.page == 1 else '' }}">
+                     &laquo;
+                  </a>
+
+                  <!-- First Page -->
+                  {% if start_page > 1 %}
+                    <a href="{{ url_for('prapemrosesan', page_raw=1, page_pre=(preview_pre.page if preview_pre else 1)) }}" class="px-2 py-1 rounded bg-white/5 hover:bg-white/10 border border-white/10">1</a>
+                    {% if start_page > 2 %}
+                      <span class="px-1">...</span>
+                    {% endif %}
+                  {% endif %}
+
+                  <!-- Page Numbers -->
+                  {% for p in range(start_page, end_page + 1) %}
+                    <a href="{{ url_for('prapemrosesan', page_raw=p, page_pre=(preview_pre.page if preview_pre else 1)) }}" 
+                       class="px-2 py-1 rounded border {{ 'bg-indigo-500/50 border-indigo-400' if p == preview_raw.page else 'bg-white/5 hover:bg-white/10 border-white/10' }}">
+                      {{ p }}
+                    </a>
+                  {% endfor %}
+
+                  <!-- Last Page -->
+                  {% if end_page < preview_raw.total_pages %}
+                    {% if end_page < preview_raw.total_pages - 1 %}
+                      <span class="px-1">...</span>
+                    {% endif %}
+                    <a href="{{ url_for('prapemrosesan', page_raw=preview_raw.total_pages, page_pre=(preview_pre.page if preview_pre else 1)) }}" class="px-2 py-1 rounded bg-white/5 hover:bg-white/10 border border-white/10">{{ preview_raw.total_pages }}</a>
+                  {% endif %}
+
+                  <!-- Next -->
+                  <a href="{{ url_for('prapemrosesan', page_raw=(preview_raw.page+1 if preview_raw.page<preview_raw.total_pages else preview_raw.total_pages), page_pre=(preview_pre.page if preview_pre else 1)) }}" 
+                     class="px-2 py-1 rounded bg-white/5 hover:bg-white/10 border border-white/10 {{ 'opacity-50 pointer-events-none' if preview_raw.page == preview_raw.total_pages else '' }}">
+                     &raquo;
+                  </a>
+                </div>
+              </div>
+            </div>
+            <div class="mt-3 overflow-auto rounded-xl border border-white/10">
+              <table class="min-w-full text-xs">
+                <thead class="bg-black/20">
+                  <tr>
+                    {% for c in preview_raw.columns %}
+                      <th class="px-3 py-2 text-left font-medium text-slate-200/80 whitespace-nowrap">{{ c }}</th>
+                    {% endfor %}
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-white/10">
+                  {% for row in preview_raw.rows %}
+                    <tr class="hover:bg-white/5">
+                      {% for c in preview_raw.columns %}
+                        <td class="px-3 py-2 text-slate-200/80 whitespace-nowrap">{{ row[c] }}</td>
+                      {% endfor %}
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <div class="mt-3 text-sm text-slate-200/70">Belum ada preview.</div>
+          {% endif %}
+        </div>
+
+        <div class="rounded-2xl bg-black/20 border border-white/10 p-4 relative">
+          <div class="flex items-center justify-between mb-3">
+            <div class="text-sm font-semibold flex items-center gap-2">
+               Preview Data Setelah Prapemrosesan
+               <span id="loading-indicator" class="hidden text-xs font-normal text-indigo-300 animate-pulse">
+                 (Memuat...)
+               </span>
+            </div>
+            <button onclick="window.location.reload()" class="rounded-lg bg-white/10 hover:bg-white/15 border border-white/15 p-1.5 text-slate-200/70 hover:text-white transition-colors" title="Refresh Halaman">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M21 21v-5h-5"/></svg>
+            </button>
+          </div>
+          
+          {% if preview_pre %}
+            {% if not pre_ok %}
+              <div class="mt-3 rounded-xl bg-rose-500/15 border border-rose-400/30 px-4 py-3 text-sm">
+                Preview prapemrosesan terdeteksi belum memuat kolom hasil transformasi (jenis_pestisida_kode, packaging_kode_angka, volume_normalisasi). Jalankan prapemrosesan ulang.
+              </div>
+            {% endif %}
+            <div class="mt-3 flex items-center justify-between gap-2 text-xs text-slate-200/70">
+              <div>Total {{ preview_pre.total_rows }} baris · Halaman {{ preview_pre.page }}/{{ preview_pre.total_pages }} · 100 baris/halaman</div>
+              <div class="flex items-center gap-2">
+                <a href="{{ url_for('prapemrosesan', page_pre=(preview_pre.page-1 if preview_pre.page>1 else 1), page_raw=(preview_raw.page if preview_raw else 1)) }}" class="rounded-lg bg-white/10 hover:bg-white/15 border border-white/15 px-3 py-1">Sebelumnya</a>
+                <a href="{{ url_for('prapemrosesan', page_pre=(preview_pre.page+1 if preview_pre.page<preview_pre.total_pages else preview_pre.total_pages), page_raw=(preview_raw.page if preview_raw else 1)) }}" class="rounded-lg bg-white/10 hover:bg-white/15 border border-white/15 px-3 py-1">Berikutnya</a>
+              </div>
+            </div>
+            {% if kolom_tambahan and kolom_tambahan|length > 0 %}
+              <div class="mt-3 rounded-xl bg-black/20 border border-white/10 px-4 py-3 text-xs text-slate-200/80">
+                Kolom baru hasil transformasi: {{ kolom_tambahan|join(', ') }}
+              </div>
+            {% endif %}
+            <div class="mt-3 overflow-auto rounded-xl border border-white/10">
+              <table class="min-w-full text-xs">
+                <thead class="bg-black/20">
+                  <tr>
+                    {% for c in preview_pre.columns %}
+                      <th class="px-3 py-2 text-left font-medium text-slate-200/80 whitespace-nowrap">{{ c }}</th>
+                    {% endfor %}
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-white/10">
+                  {% for row in preview_pre.rows %}
+                    <tr class="hover:bg-white/5">
+                      {% for c in preview_pre.columns %}
+                        <td class="px-3 py-2 text-slate-200/80 whitespace-nowrap">{{ row[c] }}</td>
+                      {% endfor %}
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <div id="pre-placeholder" class="mt-3 text-sm text-slate-200/70">
+               {% if job.status == 'preprocessing' %}
+                 <div class="flex items-center gap-2">
+                    <svg class="animate-spin h-4 w-4 text-indigo-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Sedang memproses data... (Halaman akan refresh otomatis)
+                 </div>
+               {% elif job.status == 'preprocessed' %}
+                 <div class="flex flex-col gap-2">
+                    <div>Proses selesai. Klik refresh untuk memuat hasil.</div>
+                    <button onclick="window.location.reload()" class="w-fit rounded-lg bg-indigo-500/20 hover:bg-indigo-500/30 border border-indigo-400/30 px-3 py-1.5 text-xs text-indigo-200">
+                        Refresh Sekarang
+                    </button>
+                 </div>
+               {% else %}
+                 Jalankan prapemrosesan untuk menghasilkan data bersih.
+               {% endif %}
+            </div>
+          {% endif %}
+        </div>
+      </div>
+
+      {% if perbandingan %}
+        <div class="mt-6 rounded-2xl bg-black/20 border border-white/10 p-5">
+          <div class="text-sm font-semibold">Perbandingan Row-by-Row (contoh)</div>
+          <div class="mt-1 text-xs text-slate-200/70">Menampilkan 25 baris pertama pada halaman prapemrosesan saat ini.</div>
+          <div class="mt-3 overflow-auto rounded-2xl border border-white/10">
+            <table class="min-w-full text-xs">
+              <thead class="bg-black/20">
+                <tr>
+                  <th class="px-3 py-2 text-left font-medium text-slate-200/80">Idx</th>
+                  <th class="px-3 py-2 text-left font-medium text-slate-200/80">Retailer</th>
+                  <th class="px-3 py-2 text-left font-medium text-slate-200/80">Jenis (raw)</th>
+                  <th class="px-3 py-2 text-left font-medium text-slate-200/80">Jenis kode</th>
+                  <th class="px-3 py-2 text-left font-medium text-slate-200/80">Packaging (raw)</th>
+                  <th class="px-3 py-2 text-left font-medium text-slate-200/80">Packaging angka</th>
+                  <th class="px-3 py-2 text-left font-medium text-slate-200/80">Volume (raw)</th>
+                  <th class="px-3 py-2 text-left font-medium text-slate-200/80">Volume normalisasi</th>
+                  <th class="px-3 py-2 text-left font-medium text-slate-200/80">Distributor kode</th>
+                  <th class="px-3 py-2 text-left font-medium text-slate-200/80">Area kode</th>
+                  <th class="px-3 py-2 text-left font-medium text-slate-200/80">Regency kode</th>
+                  <th class="px-3 py-2 text-left font-medium text-slate-200/80">Product kode</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-white/10">
+                {% for r in perbandingan.rows %}
+                  <tr class="hover:bg-white/5">
+                    <td class="px-3 py-2">{{ r.idx }}</td>
+                    <td class="px-3 py-2 text-slate-200/80">{{ r.retailer }}</td>
+                    <td class="px-3 py-2 text-slate-200/80">{{ r.jenis_raw }}</td>
+                    <td class="px-3 py-2">{{ r.jenis_kode }}</td>
+                    <td class="px-3 py-2 text-slate-200/80">{{ r.packaging_raw }}</td>
+                    <td class="px-3 py-2">{{ r.packaging_angka }}</td>
+                    <td class="px-3 py-2 text-slate-200/80">{{ r.volume_raw }}</td>
+                    <td class="px-3 py-2">{{ r.volume_norm }}</td>
+                    <td class="px-3 py-2">{{ r.distributor_kode }}</td>
+                    <td class="px-3 py-2">{{ r.area_kode }}</td>
+                    <td class="px-3 py-2">{{ r.regency_kode }}</td>
+                    <td class="px-3 py-2">{{ r.product_kode }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      {% endif %}
+    </div>
+
+    <div class="rounded-2xl bg-white/10 backdrop-blur-md border border-white/15 shadow-glass p-6">
+      <div class="text-lg font-semibold">Ringkasan</div>
+      {% if ringkasan %}
+        <div class="mt-4 space-y-3 text-sm text-slate-200/85">
+          <div class="flex justify-between rounded-xl bg-black/20 border border-white/10 px-4 py-3">
+            <span>Jumlah awal</span><span class="font-semibold">{{ ringkasan.jumlah_awal }}</span>
+          </div>
+          <div class="flex justify-between rounded-xl bg-black/20 border border-white/10 px-4 py-3">
+            <span>Data bersih</span><span class="font-semibold">{{ ringkasan.jumlah_setelah_bersih }}</span>
+          </div>
+          <div class="flex justify-between rounded-xl bg-black/20 border border-white/10 px-4 py-3">
+            <span>Dihapus karena NA</span><span class="font-semibold">{{ ringkasan.jumlah_dihapus_na }}</span>
+          </div>
+          {% if ringkasan.jumlah_missing_diisi is defined %}
+            <div class="flex justify-between rounded-xl bg-black/20 border border-white/10 px-4 py-3">
+              <span>Missing value diisi (placeholder)</span><span class="font-semibold">{{ ringkasan.jumlah_missing_diisi }}</span>
+            </div>
+          {% endif %}
+          <div class="flex justify-between rounded-xl bg-black/20 border border-white/10 px-4 py-3">
+            <span>Dihapus duplikasi</span><span class="font-semibold">{{ ringkasan.jumlah_dihapus_duplikat }}</span>
+          </div>
+          <div class="rounded-xl bg-black/20 border border-white/10 px-4 py-3">
+            <div class="text-xs text-slate-200/70">Min–Maks Volume</div>
+            <div class="mt-1 text-sm font-semibold">{{ ringkasan.volume_min }} → {{ ringkasan.volume_max }}</div>
+          </div>
+          {% if ringkasan.volume_norm_min is defined %}
+            <div class="rounded-xl bg-black/20 border border-white/10 px-4 py-3">
+              <div class="text-xs text-slate-200/70">Rentang Volume Normalisasi</div>
+              <div class="mt-1 text-sm font-semibold">{{ ringkasan.volume_norm_min }} → {{ ringkasan.volume_norm_max }}</div>
+            </div>
+          {% endif %}
+          {% if ringkasan.kolom_baru is defined and ringkasan.kolom_baru %}
+            <div class="rounded-xl bg-black/20 border border-white/10 px-4 py-3">
+              <div class="text-xs text-slate-200/70">Kolom hasil transformasi</div>
+              <div class="mt-2 text-xs text-slate-200/80">{{ ringkasan.kolom_baru|join(', ') }}</div>
+            </div>
+          {% endif %}
+          {% if ringkasan.jumlah_unik_distributor is defined %}
+            <div class="rounded-xl bg-black/20 border border-white/10 px-4 py-3">
+              <div class="text-xs text-slate-200/70">Jumlah unik (setelah encoding)</div>
+              <div class="mt-2 grid grid-cols-2 gap-2 text-xs text-slate-200/80">
+                <div>Distributor: <span class="font-semibold">{{ ringkasan.jumlah_unik_distributor }}</span></div>
+                <div>Area: <span class="font-semibold">{{ ringkasan.jumlah_unik_area }}</span></div>
+                <div>Regency: <span class="font-semibold">{{ ringkasan.jumlah_unik_regency }}</span></div>
+                <div>Product: <span class="font-semibold">{{ ringkasan.jumlah_unik_product }}</span></div>
+              </div>
+            </div>
+          {% endif %}
+        </div>
+      {% else %}
+        <div class="mt-3 text-sm text-slate-200/70">Ringkasan akan muncul setelah prapemrosesan.</div>
+      {% endif %}
+
+      <div class="mt-6">
+        <div class="text-lg font-semibold">Log Proses</div>
+        <div class="mt-3 h-72 overflow-auto rounded-2xl bg-black/30 border border-white/10 p-4">
+          <pre id="logBox" class="text-xs whitespace-pre-wrap text-slate-200/85"></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const jobId = {{ job.id }};
+    const logBox = document.getElementById("logBox");
+
+    async function refreshLogs() {
+      const r = await fetch(`/api/job/${jobId}/logs`);
+      if (!r.ok) return;
+      const data = await r.json();
+      logBox.textContent = (data.logs || []).join("\n");
+      if (["preprocessing", "clustering"].includes(data.status)) {
+        setTimeout(refreshLogs, 1200);
+      }
+    }
+    refreshLogs();
+  </script>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    const jobId = {{ job.id }};
+    const loadingIndicator = document.getElementById("loading-indicator");
+    const prePlaceholder = document.getElementById("pre-placeholder");
+    
+    // Status polling
+    let pollInterval = null;
+
+    async function checkStatus() {
+      try {
+        const r = await fetch(`/api/job/${jobId}/status`);
+        if (!r.ok) return;
+        const data = await r.json();
+        
+        // Jika status berubah jadi 'preprocessed' (selesai), reload page
+        if (data.status === 'preprocessed') {
+           if (loadingIndicator) loadingIndicator.classList.remove("hidden");
+           window.location.reload();
+        } 
+        // Jika masih preprocessing, pastikan UI loading terlihat
+        else if (data.status === 'preprocessing') {
+           if (loadingIndicator) loadingIndicator.classList.remove("hidden");
+        }
+        // Jika error
+        else if (data.status === 'error') {
+           clearInterval(pollInterval);
+           alert("Terjadi kesalahan: " + data.last_error);
+           window.location.reload();
+        }
+      } catch (e) {
+        console.error("Polling error:", e);
+      }
+    }
+
+    // Mulai polling jika status saat ini adalah 'preprocessing'
+    // Atau jika kita baru saja submit form (bisa dideteksi dari server-side rendering status)
+    const currentStatus = "{{ job.status }}";
+    if (currentStatus === 'preprocessing') {
+       pollInterval = setInterval(checkStatus, 2000);
+    }
+  });
+</script>
+{% endblock %}
